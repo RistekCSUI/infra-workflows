@@ -1,0 +1,90 @@
+name: Service Repo Build and Deploy (Amazon ECR)
+
+on:
+  workflow_call:
+    inputs:
+      SERVICES:
+        type: string
+        description: Comma-separated string of services (e.g. "system/caddy, summerfest/summerfest-be-stg, summerfest/summerfest-be-prod")
+        required: true
+      INSTANCE:
+        type: string
+        description: Which instance is the deploy target (Instance Name)
+        required: true
+      REGISTRY:
+        type: string
+        description: The container registry to push into
+        required: true
+      REGISTRY_IMAGE:
+        type: string
+        description: Name of the image to build
+        required: true
+      REGISTRY_USER:
+        type: string
+        description: User account for the registry
+        required: true
+      PLATFORMS:
+        type: string
+        description: Comma separated (no spaces) list of target platforms to build for
+        default: linux/amd64
+      IMAGE_TAG:
+        type: string
+        description: Image tag name (either stable or latest, but you can also use your own tags)
+        default: latest
+      AWS_REGION:
+        type: string
+        description: The region of the registry
+        default: ap-southeast-1
+    secrets:
+      GH_TOKEN:
+        description: GitHub token to trigger deployments on Central Infra
+        required: true
+      AWS_ECR_ACCESS_KEY:
+        description: An access key for Amazon ECR
+        required: true
+      AWS_ECR_SECRET_KEY:
+        description: A secret key paired with the access key for Amazon ECR
+        required: true
+
+jobs:
+  build_and_push:
+    name: Build and Push Image to ECR
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Profile for ECR
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ECR_ACCESS_KEY }} --profile ecr-manager
+          aws configure set aws_secret_access_key ${{ secrets.AWS_ECR_SECRET_KEY }} --profile ecr-manager
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ inputs.AWS_REGION }} --profile ecr-manager | \
+            docker login --username ${{ inputs.REGISTRY_USER }} --password-stdin ${{ inputs.REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Image to ECR
+        run: |
+          docker buildx build --platform=${{ inputs.PLATFORMS }} -t "${{ inputs.REGISTRY }}/${{ inputs.REGISTRY_IMAGE }}:${{ inputs.IMAGE_TAG }}" --push .
+
+  central_infra_deploy:
+    name: Trigger Deployment on Central Infra
+    needs: [build_and_push]
+    runs-on: ubuntu-22.04
+    steps:
+      - run: |
+          REPO_OWNER=RistekCSUI
+          REPO_NAME=infra
+          EVENT_TYPE=trigger-workflow
+
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/dispatches \
+            -d "{\"event_type\": \"$EVENT_TYPE\", \"client_payload\": {\"SERVICES\": \"${{ inputs.SERVICES }}\", \"INSTANCE\": \"${{ inputs.INSTANCE }}\"}}"
