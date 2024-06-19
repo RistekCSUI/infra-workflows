@@ -57,7 +57,7 @@ There are workflow files in this repo which can be called by service repositorie
 |---|---|
 | REGISTRY | The container registry which will be used |
 | REGISTRY_IMAGE | Name of the image to build |
-| REGISTRY_USER | REGISTRY_USER |
+| REGISTRY_USER | User account of the registry |
 | AWS_REGION | The AWS region for the registry |
   
 **Docker Hub** (`.github/workflows/dockerhub-service-build.yml`)
