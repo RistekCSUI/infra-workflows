@@ -27,6 +27,10 @@ on:
         type: string
         description: Image tag name (either stable or latest, but you can also use your own tags)
         default: latest
+      RUN_CENTRAL_INFRA_DEPLOY:
+        type: boolean
+        description: Flag to run the central_infra_deploy job
+        default: true
     secrets:
       GH_TOKEN:
         description: GitHub token to trigger deployments on Central Infra
@@ -66,8 +70,9 @@ jobs:
 
   central_infra_deploy:
     name: Trigger Deployment on Central Infra
-    needs: [build_and_push]
     runs-on: ubuntu-22.04
+    if: ${{ inputs.RUN_CENTRAL_INFRA_DEPLOY == 'true' }}
+    needs: [build_and_push]
     steps:
       - run: |
           REPO_OWNER=RistekCSUI
