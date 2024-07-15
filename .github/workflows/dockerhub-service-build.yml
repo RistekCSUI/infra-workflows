@@ -71,7 +71,7 @@ jobs:
   central_infra_deploy:
     name: Trigger Deployment on Central Infra
     runs-on: ubuntu-22.04
-    if: ${{ inputs.RUN_CENTRAL_INFRA_DEPLOY == 'true' }}
+    if: inputs.RUN_CENTRAL_INFRA_DEPLOY
     needs: [build_and_push]
     steps:
       - run: |
